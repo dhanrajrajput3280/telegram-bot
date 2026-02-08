@@ -7,9 +7,9 @@ from datetime import date
 # =======================
 # 🔐 TELEGRAM DETAILS (CHANGE ONLY THESE)
 # =======================
-api_id = 31272223                # 🔁 YOUR API_ID
-api_hash = "8062c4dfc7a6a95ffb00bdfa9cff269e"        # 🔁 YOUR API_HASH
-bot_token = "8497845791:AAHYThI6Q5cCq1HNBZwP5Y9EVOCsbKBzZHE"      # 🔁 YOUR BOT TOKEN
+api_id = 31272223
+api_hash = "8062c4dfc7a6a95ffb00bdfa9cff269e"
+bot_token = "8497845791:AAHYThI6Q5cCq1HNBZwP5Y9EVOCsbKBzZHE"
 
 # =======================
 # 👑 OWNER
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS pending_referrals (
 db.commit()
 
 # =======================
-# 🎬 VIDEO STORAGE (RAM)
+# 🎬 VIDEO STORAGE
 # =======================
 VIDEOS = []
 
@@ -86,6 +86,27 @@ async def is_joined(user_id):
         return False
 
 # =======================
+# 🎁 DAILY BONUS (SILENT)
+# =======================
+async def apply_daily_bonus(user_id):
+    today = str(date.today())
+    cursor.execute(
+        "SELECT credits, last_free_date FROM users WHERE user_id=?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        return
+    credits, last_date = row
+    if last_date != today:
+        credits += 5
+        cursor.execute(
+            "UPDATE users SET credits=?, last_free_date=? WHERE user_id=?",
+            (credits, today, user_id)
+        )
+        db.commit()
+
+# =======================
 # 🔒 JOIN MESSAGE
 # =======================
 async def send_join_message(event):
@@ -100,7 +121,7 @@ async def send_join_message(event):
     )
 
 # =======================
-# ▶️ START (WELCOME ONLY)
+# ▶️ START
 # =======================
 @bot.on(events.NewMessage(pattern=r"/start(?:\s+(\d+))?"))
 async def start(event):
@@ -116,8 +137,6 @@ async def start(event):
         cursor.execute("INSERT INTO users VALUES (?,?,?)", (user_id, 10, today))
         db.commit()
         credits = 10
-
-        # save referral temporarily
         if ref and ref != user_id:
             cursor.execute(
                 "INSERT OR IGNORE INTO pending_referrals VALUES (?,?)",
@@ -135,15 +154,13 @@ async def start(event):
             db.commit()
 
     await event.reply(
-    "👋 Welcome to Viral Video Hub!\n\n"
-    "🎬 Watch trending and viral videos easily.\n\n"
-    f"💳 Your Available Credits: {'UNLIMITED' if user_id == OWNER_ID else credits}\n"
-    "💡 1 credit = 1 video\n\n"
-    "🎁 +5 free credits added daily.\n\n"
-    "👇 Tap below to start watching.",
-    buttons=[[Button.inline("▶️ Watch Video", b"watch")]]
-)
-
+        "👋 Welcome to Viral Video Hub!\n\n"
+        "🎬 Watch trending and viral videos easily.\n\n"
+        f"💳 Your Available Credits: {'UNLIMITED' if user_id == OWNER_ID else credits}\n"
+        "💡 1 credit = 1 video\n\n"
+        "👇 Tap below to start watching.",
+        buttons=[[Button.inline("▶️ Watch Video", b"watch")]]
+    )
 
 # =======================
 # 🎥 OWNER VIDEO ADD
@@ -152,114 +169,55 @@ async def start(event):
 async def save_video(event):
     if event.sender_id == OWNER_ID and event.video:
         VIDEOS.append(event.video)
-        await event.reply(
-            f"✅ Video saved successfully!\n\nTotal videos available: {len(VIDEOS)}"
-        )
+        await event.reply(f"✅ Video saved ({len(VIDEOS)})")
 
 # =======================
-# ▶️ TRY AGAIN (REFERRAL CREDIT)
+# ▶️ TRY AGAIN
 # =======================
 @bot.on(events.CallbackQuery(data=b"try_again"))
 async def try_again(event):
     user_id = event.sender_id
 
     if user_id != OWNER_ID and not await is_joined(user_id):
-        await event.answer("You have not joined yet.", alert=True)
         await send_join_message(event)
         return
 
-    # referral credit after join
-    cursor.execute(
-        "SELECT referrer_id FROM pending_referrals WHERE new_user_id=?",
-        (user_id,)
-    )
-    row = cursor.fetchone()
-
-    if row:
-        referrer_id = row[0]
-        cursor.execute(
-            "INSERT OR IGNORE INTO shares VALUES (?,?)",
-            (referrer_id, user_id)
-        )
-        if cursor.rowcount > 0:
-            cursor.execute(
-                "UPDATE users SET credits = credits + 10 WHERE user_id=?",
-                (referrer_id,)
-            )
-        cursor.execute(
-            "DELETE FROM pending_referrals WHERE new_user_id=?",
-            (user_id,)
-        )
-        db.commit()
-
+    await apply_daily_bonus(user_id)
     await watch_video(event)
 
 # =======================
-# ▶️ WATCH VIDEO (MAIN)
+# ▶️ WATCH VIDEO
 # =======================
 @bot.on(events.CallbackQuery(data=b"watch"))
 async def watch_video(event):
     user_id = event.sender_id
 
-    # join check here
     if user_id != OWNER_ID and not await is_joined(user_id):
         await send_join_message(event)
         return
 
-    # 🔥 referral credit if already joined
-    cursor.execute(
-        "SELECT referrer_id FROM pending_referrals WHERE new_user_id=?",
-        (user_id,)
-    )
-    row = cursor.fetchone()
-
-    if row:
-        referrer_id = row[0]
-        cursor.execute(
-            "INSERT OR IGNORE INTO shares VALUES (?,?)",
-            (referrer_id, user_id)
-        )
-        if cursor.rowcount > 0:
-            cursor.execute(
-                "UPDATE users SET credits = credits + 10 WHERE user_id=?",
-                (referrer_id,)
-            )
-        cursor.execute(
-            "DELETE FROM pending_referrals WHERE new_user_id=?",
-            (user_id,)
-        )
-        db.commit()
+    await apply_daily_bonus(user_id)
 
     if not VIDEOS:
-        await event.respond(
-            "⚠️ No videos are available right now.\n\nPlease try again later."
-        )
+        await event.respond("⚠️ No videos available right now.")
         return
 
-    # credit check
     if user_id != OWNER_ID:
         cursor.execute("SELECT credits FROM users WHERE user_id=?", (user_id,))
         credits = cursor.fetchone()[0]
-
         if credits <= 0:
             bot_username = (await bot.get_me()).username
             link = f"https://t.me/{bot_username}?start={user_id}"
             await event.respond(
                 "🚫 Your credits are finished!\n\n"
-                "🎬 To continue watching videos:\n"
-                "👥 Share this bot with 1 friend and get 🎁 +10 credits for free.\n\n"
-                "🔗 Your sharing link:\n"
-                f"{link}\n\n"
-                "💡 Tip: Each credit = 1 video"
+                f"🔗 {link}"
             )
             return
-
         cursor.execute(
             "UPDATE users SET credits = credits - 1 WHERE user_id=?",
             (user_id,)
         )
 
-    # queue (no repeat per cycle)
     cursor.execute(
         "SELECT video_no FROM video_queue WHERE user_id=? ORDER BY position",
         (user_id,)
@@ -300,28 +258,20 @@ async def watch_video(event):
 async def check_credits(event):
     user_id = event.sender_id
 
+    await apply_daily_bonus(user_id)
+
     if user_id == OWNER_ID:
-        await event.respond(
-            "💳 Your Current Credits: UNLIMITED\n\n👑 You are the owner."
-        )
+        await event.respond("💳 Credits: UNLIMITED")
         return
 
     cursor.execute("SELECT credits FROM users WHERE user_id=?", (user_id,))
     credits = cursor.fetchone()[0]
 
-    bot_username = (await bot.get_me()).username
-    link = f"https://t.me/{bot_username}?start={user_id}"
-
-    await event.respond(
-        f"💳 Your Current Credits: {credits}\n\n"
-        "🎬 Each credit lets you watch 1 video.\n\n"
-        "👥 Want more credits?\n"
-        "Share this bot with 1 friend and get 🎁 +10 credits for free.\n\n"
-        f"🔗 Your sharing link:\n{link}"
-    )
+    await event.respond(f"💳 Your Current Credits: {credits}")
 
 # =======================
 # 🚀 RUN
 # =======================
 print("🤖 Bot is running...")
 bot.run_until_disconnected()
+
