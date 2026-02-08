@@ -5,7 +5,7 @@ import random
 from datetime import date
 
 # =======================
-# 🔐 TELEGRAM DETAILS (CHANGE ONLY THESE)
+# 🔐 TELEGRAM DETAILS
 # =======================
 api_id = 31272223
 api_hash = "8062c4dfc7a6a95ffb00bdfa9cff269e"
@@ -17,7 +17,7 @@ bot_token = "8497845791:AAHYThI6Q5cCq1HNBZwP5Y9EVOCsbKBzZHE"
 OWNER_ID = 6712059124
 
 # =======================
-# 🔒 CHANNEL (PUBLIC)
+# 🔒 CHANNEL
 # =======================
 FORCE_CHANNEL_LINK = "https://t.me/desiivirallhub"
 FORCE_CHANNEL_ID = -1003522049325
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS pending_referrals (
 db.commit()
 
 # =======================
-# 🎬 VIDEO STORAGE
+# 🎬 VIDEOS
 # =======================
 VIDEOS = []
 
@@ -112,8 +112,8 @@ async def apply_daily_bonus(user_id):
 async def send_join_message(event):
     await event.respond(
         "🚫 Access Locked\n\n"
-        "To watch videos, please join our official channel.\n\n"
-        "After joining, tap “Try Again”.",
+        "To watch videos, please join our official channel first.\n\n"
+        "After joining, click **Try Again**.",
         buttons=[
             [Button.url("📢 Join Channel", FORCE_CHANNEL_LINK)],
             [Button.inline("🔄 Try Again", b"try_again")]
@@ -155,10 +155,10 @@ async def start(event):
 
     await event.reply(
         "👋 Welcome to Viral Video Hub!\n\n"
-        "🎬 Watch trending and viral videos easily.\n\n"
-        f"💳 Your Available Credits: {'UNLIMITED' if user_id == OWNER_ID else credits}\n"
+        "🎬 Watch trending and viral videos directly on Telegram.\n\n"
+        f"💳 Available Credits: {'UNLIMITED' if user_id == OWNER_ID else credits}\n"
         "💡 1 credit = 1 video\n\n"
-        "👇 Tap below to start watching.",
+        "👇 Click below to start watching.",
         buttons=[[Button.inline("▶️ Watch Video", b"watch")]]
     )
 
@@ -169,7 +169,7 @@ async def start(event):
 async def save_video(event):
     if event.sender_id == OWNER_ID and event.video:
         VIDEOS.append(event.video)
-        await event.reply(f"✅ Video saved ({len(VIDEOS)})")
+        await event.reply(f"✅ Video saved successfully!\n\nTotal videos: {len(VIDEOS)}")
 
 # =======================
 # ▶️ TRY AGAIN
@@ -199,20 +199,29 @@ async def watch_video(event):
     await apply_daily_bonus(user_id)
 
     if not VIDEOS:
-        await event.respond("⚠️ No videos available right now.")
+        await event.respond(
+            "⚠️ No videos are available right now.\n\nPlease try again later."
+        )
         return
 
     if user_id != OWNER_ID:
         cursor.execute("SELECT credits FROM users WHERE user_id=?", (user_id,))
         credits = cursor.fetchone()[0]
+
         if credits <= 0:
             bot_username = (await bot.get_me()).username
             link = f"https://t.me/{bot_username}?start={user_id}"
+
             await event.respond(
                 "🚫 Your credits are finished!\n\n"
-                f"🔗 {link}"
+                "🎬 To watch more videos:\n"
+                "👥 Share this bot with 1 friend and get 🎁 +10 credits.\n\n"
+                "🔗 Your sharing link:\n"
+                f"{link}\n\n"
+                "💡 Tip: 1 credit = 1 video"
             )
             return
+
         cursor.execute(
             "UPDATE users SET credits = credits - 1 WHERE user_id=?",
             (user_id,)
@@ -261,17 +270,27 @@ async def check_credits(event):
     await apply_daily_bonus(user_id)
 
     if user_id == OWNER_ID:
-        await event.respond("💳 Credits: UNLIMITED")
+        await event.respond(
+            "💳 Your Credits: UNLIMITED\n\n👑 Owner access enabled."
+        )
         return
 
     cursor.execute("SELECT credits FROM users WHERE user_id=?", (user_id,))
     credits = cursor.fetchone()[0]
 
-    await event.respond(f"💳 Your Current Credits: {credits}")
+    bot_username = (await bot.get_me()).username
+    link = f"https://t.me/{bot_username}?start={user_id}"
+
+    await event.respond(
+        f"💳 Your Current Credits: {credits}\n\n"
+        "🎬 1 credit = 1 video\n\n"
+        "👥 Want more credits?\n"
+        "Share this bot with 1 friend and get 🎁 +10 credits.\n\n"
+        f"🔗 Your sharing link:\n{link}"
+    )
 
 # =======================
 # 🚀 RUN
 # =======================
 print("🤖 Bot is running...")
 bot.run_until_disconnected()
-
