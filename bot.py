@@ -157,6 +157,7 @@ async def start(event):
         "👋 Welcome to Viral Video Hub!\n\n"
         "🎬 Watch trending and viral videos directly on Telegram.\n\n"
         f"💳 Available Credits: {'UNLIMITED' if user_id == OWNER_ID else credits}\n"
+        "💡 🎁 Get 5 free credits daily.\n\n"
         "💡 1 credit = 1 video\n\n"
         "👇 Click below to start watching.",
         buttons=[[Button.inline("▶️ Watch Video", b"watch")]]
@@ -294,3 +295,4 @@ async def check_credits(event):
 # =======================
 print("🤖 Bot is running...")
 bot.run_until_disconnected()
+
